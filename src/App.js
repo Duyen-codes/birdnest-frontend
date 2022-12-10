@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useState, useEffect } from 'react'
+import moment from 'moment'
 
 function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
   const d =
@@ -10,6 +11,19 @@ function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
     )
 
   return d <= 0
+}
+
+// check time validity
+
+const isTimeValid = (snapshotTimestamp) => {
+  let today = new Date()
+  // console.log('today', today)
+  let snapshotDate = new Date(snapshotTimestamp)
+  let diff = today.getTime() - snapshotDate.getTime()
+  // console.log('diff', diff)
+  let diffInMinutes = Math.round(diff / 60000)
+  // console.log('diffInMinutes', diffInMinutes)
+  return diffInMinutes <= 3
 }
 
 function App() {
@@ -36,7 +50,7 @@ function App() {
 
         // filter the captureData array which is an arr of capture objects{snapshotTimestamp, drone} to get new arr of captures with only violating drones
 
-        const listWithViolatingDrones = captureData.map((captureObject) => {
+        const listWithViolatingDrones = captureData?.map((captureObject) => {
           console.log(
             'captureObject.drone.length before filter',
             captureObject.drone.length,
@@ -60,8 +74,21 @@ function App() {
 
         console.log('listWithViolatingDrones', listWithViolatingDrones)
 
-        const minutesFromNow = listWithViolatingDrones[0].snapshotTimestamp
-        console.log('minutesFromNow', minutesFromNow)
+        const snapshotTimestamp = listWithViolatingDrones[0]?.snapshotTimestamp
+        console.log('snapshotTimestamp', snapshotTimestamp)
+        let snapshotDate = new Date(snapshotTimestamp)
+
+        console.log('snapshotDate', snapshotDate)
+
+        let dateTimeAgo = moment(snapshotDate).fromNow()
+        console.log('dateTimeAgo', dateTimeAgo)
+
+        let today = new Date()
+
+        let diff = today.getTime() - snapshotDate.getTime()
+        console.log('diff', diff)
+        let diffInMinutes = Math.round(diff / 60000)
+        console.log('diffInMinutes', diffInMinutes)
 
         // create pilot links for fetching
 
@@ -99,12 +126,23 @@ function App() {
 
   console.log('rerendering...')
   console.log('captureData', captureData)
+
+  let validCaptures = captureData.filter((capture) => {
+    let result = isTimeValid(capture.snapshotTimestamp)
+
+    if (result) {
+      return capture
+    }
+  })
+
+  console.log('validCaptures.length', validCaptures.length)
+
   return (
     <div className="App">
       <h1> birdnest app</h1>
       <h3>Pilots whose drones violate NDZ in the last 10m</h3>
       <ol>
-        {captureData.map((capture, index) => (
+        {validCaptures.map((capture, index) => (
           <li key={index}>{capture.snapshotTimestamp}</li>
         ))}
       </ol>
