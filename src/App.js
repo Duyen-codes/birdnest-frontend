@@ -4,7 +4,7 @@ import moment from 'moment'
 
 // calculate distance between each drone to nfz origin point (position 250000, 250000)
 //
-// to define which drones are violating the nfz
+// to define which drones are violating the NDZ (no drone zone)
 function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
   const d =
     Radius -
@@ -25,7 +25,8 @@ const isTimeValid = (today, snapshotTimestamp) => {
   // console.log('diff', diff)
   let diffInMinutes = Math.ceil(diff / 60000)
   // console.log('diffInMinutes', diffInMinutes)
-  return diffInMinutes <= 10
+
+  return diffInMinutes <= 4
 }
 
 const momentAgo = (snapshotTimestamp) => {
@@ -49,10 +50,10 @@ function App() {
     console.log('useEffect running')
     let interval = setInterval(() => {
       axios.get('http://localhost:3001/api/drones').then((response) => {
-        console.log(
-          'response.data.report.capture[0]',
-          response.data.report.capture[0],
-        )
+        // console.log(
+        //   'response.data.report.capture[0]',
+        //   response.data.report.capture[0],
+        // )
 
         setCaptureData(captureData.concat(response.data.report.capture[0]))
 
@@ -64,10 +65,12 @@ function App() {
             return capture
           }
         })
+
         setValidCaptures(validCaptures)
+
         // filter the captureData array which is an arr of capture objects{snapshotTimestamp, drone} to get new arr of captures with only violating drones
 
-        const listWithViolatingDrones = captureData?.map((captureObject) => {
+        const listWithViolatingDrones = validCaptures?.map((captureObject) => {
           let filteredDroneArr = captureObject.drone.filter((drone) => {
             return isInsideNDZ(
               drone.positionX,
@@ -77,28 +80,70 @@ function App() {
               Radius,
             )
           }) // filter ends here
-          console.log('filteredDroneArr.length', filteredDroneArr.length)
 
           return { ...captureObject, drone: filteredDroneArr }
         }) // map ends here
 
-        console.log('listWithViolatingDrones', listWithViolatingDrones)
+        // array of distance, use Math.min to fine the closet confirmed distance drone-nest
 
         // create pilot links for fetching violating pilot info
+        // expected output is an arr of link with serialNumber param
 
-        // const fetchPilotLinks = violatingDrones?.map((drone) => {
-        //   return `http://localhost:3001/api/pilots/${drone.serialNumber}`
-        // })
+        const fetchPilotLinks = listWithViolatingDrones
+          ?.map((captureObject) => {
+            let serialNumberList = captureObject.drone.map(
+              (drone) => drone.serialNumber,
+            )
+
+            let pilotLinks = serialNumberList.map(
+              (serialNumber) =>
+                `http://localhost:3001/api/pilots/${serialNumber}`,
+            )
+            return pilotLinks
+          })
+          .reduce(
+            (accumulator, currentValue) => accumulator.concat(currentValue),
+            [],
+          )
+
+        // remove duplicate links out of fetchPilotLinks array
+        const pilotLinksWithNoDuplicates = fetchPilotLinks.reduce(
+          (accumulator, currentValue) => {
+            if (!accumulator.includes(currentValue)) {
+              return [...accumulator, currentValue]
+            }
+            return accumulator
+          },
+          [],
+        )
+
+        console.log(
+          'pilotLinksWithNoDuplicates',
+          pilotLinksWithNoDuplicates.length,
+        )
 
         // fetch pilots info
 
-        // axios.all(fetchPilotLinks.map((link) => axios.get(link))).then(
-        //   axios.spread(function (...res) {
-        //     console.log('res', res)
-        //     setViolatingPilots(res)
-        //   }),
-        // )
+        axios
+          .all(pilotLinksWithNoDuplicates.map((link) => axios.get(link)))
+          .then(
+            axios.spread(function (...res) {
+              console.log('res', res)
+              // setViolatingPilots(res)
+              const allPilots = res.reduce(
+                (accumulator, currentValue) =>
+                  accumulator.concat(currentValue.data),
+                [],
+              )
+              console.log('allPilotsArr', allPilots)
+              setViolatingPilots(allPilots)
+            }),
+          )
         // axios all ends here
+
+        console.log('captureData', captureData.length)
+        console.log('validCaptures', validCaptures.length)
+        console.log('listWithViolatingDrones', listWithViolatingDrones.length)
       })
     }, 5000)
 
@@ -114,11 +159,7 @@ function App() {
     )
   }
 
-  console.log('captureData', captureData)
-  console.log('validCaptures', validCaptures)
-
-  console.log('validCaptures.length', validCaptures.length)
-  if (!validCaptures) {
+  if (validCaptures.length === 0) {
     return <p>loading...</p>
   }
   return (
@@ -126,10 +167,14 @@ function App() {
       <h1> birdnest app</h1>
       <h3>Pilots whose drones violate NDZ from the last 10 minutes</h3>
       <ol>
-        {validCaptures.map((capture, index) => (
-          <li key={index}>
-            {capture.snapshotTimestamp}
-            <p>Captured {momentAgo(capture.snapshotTimestamp)}</p>
+        {violatingPilots.map((pilot, index) => (
+          <li key={pilot.firstName}>
+            <p>
+              {' '}
+              {pilot.firstName} {pilot.lastName}
+            </p>
+            <p>phone: {pilot.phoneNumber}</p>
+            <p>Email: {pilot.email}</p>
           </li>
         ))}
       </ol>
