@@ -2,6 +2,9 @@ import axios from 'axios'
 import { useState, useEffect } from 'react'
 import moment from 'moment'
 
+// calculate distance between each drone to nfz origin point (position 250000, 250000)
+//
+// to define which drones are violating the nfz
 function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
   const d =
     Radius -
@@ -15,24 +18,32 @@ function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
 
 // check time validity
 
-const isTimeValid = (snapshotTimestamp) => {
-  let today = new Date()
+const isTimeValid = (today, snapshotTimestamp) => {
   // console.log('today', today)
   let snapshotDate = new Date(snapshotTimestamp)
   let diff = today.getTime() - snapshotDate.getTime()
   // console.log('diff', diff)
-  let diffInMinutes = Math.round(diff / 60000)
+  let diffInMinutes = Math.ceil(diff / 60000)
   // console.log('diffInMinutes', diffInMinutes)
-  return diffInMinutes <= 3
+  return diffInMinutes <= 10
+}
+
+const momentAgo = (snapshotTimestamp) => {
+  const snapshotDate = new Date(snapshotTimestamp)
+
+  return moment(snapshotDate).fromNow()
 }
 
 function App() {
   const [captureData, setCaptureData] = useState([])
+  const [validCaptures, setValidCaptures] = useState([])
   const [violatingPilots, setViolatingPilots] = useState([])
 
   const Radius = 100
   const originX = 250000
   const originY = 250000
+  const today = new Date()
+  console.log('App rendering...')
 
   useEffect(() => {
     console.log('useEffect running')
@@ -44,18 +55,19 @@ function App() {
         )
 
         setCaptureData(captureData.concat(response.data.report.capture[0]))
-        // console.log('captureData', captureData)
 
         // filter out captureData that is valid (from the last 10 minutes)
+        let validCaptures = captureData.filter((capture) => {
+          let result = isTimeValid(today, capture?.snapshotTimestamp)
 
+          if (result) {
+            return capture
+          }
+        })
+        setValidCaptures(validCaptures)
         // filter the captureData array which is an arr of capture objects{snapshotTimestamp, drone} to get new arr of captures with only violating drones
 
         const listWithViolatingDrones = captureData?.map((captureObject) => {
-          console.log(
-            'captureObject.drone.length before filter',
-            captureObject.drone.length,
-          )
-
           let filteredDroneArr = captureObject.drone.filter((drone) => {
             return isInsideNDZ(
               drone.positionX,
@@ -68,29 +80,11 @@ function App() {
           console.log('filteredDroneArr.length', filteredDroneArr.length)
 
           return { ...captureObject, drone: filteredDroneArr }
-
-          console.log('before return map')
         }) // map ends here
 
         console.log('listWithViolatingDrones', listWithViolatingDrones)
 
-        const snapshotTimestamp = listWithViolatingDrones[0]?.snapshotTimestamp
-        console.log('snapshotTimestamp', snapshotTimestamp)
-        let snapshotDate = new Date(snapshotTimestamp)
-
-        console.log('snapshotDate', snapshotDate)
-
-        let dateTimeAgo = moment(snapshotDate).fromNow()
-        console.log('dateTimeAgo', dateTimeAgo)
-
-        let today = new Date()
-
-        let diff = today.getTime() - snapshotDate.getTime()
-        console.log('diff', diff)
-        let diffInMinutes = Math.round(diff / 60000)
-        console.log('diffInMinutes', diffInMinutes)
-
-        // create pilot links for fetching
+        // create pilot links for fetching violating pilot info
 
         // const fetchPilotLinks = violatingDrones?.map((drone) => {
         //   return `http://localhost:3001/api/pilots/${drone.serialNumber}`
@@ -111,11 +105,7 @@ function App() {
     return () => {
       clearInterval(interval)
     }
-  }, [violatingPilots])
-
-  // calculate distance between each drone to nfz origin point (position 250000, 250000)
-  //
-  // to define which drones are violating the nfz
+  }, [captureData])
 
   function droneToNestDistance(droneX, droneY) {
     return Math.sqrt(
@@ -124,26 +114,23 @@ function App() {
     )
   }
 
-  console.log('rerendering...')
   console.log('captureData', captureData)
-
-  let validCaptures = captureData.filter((capture) => {
-    let result = isTimeValid(capture.snapshotTimestamp)
-
-    if (result) {
-      return capture
-    }
-  })
+  console.log('validCaptures', validCaptures)
 
   console.log('validCaptures.length', validCaptures.length)
-
+  if (!validCaptures) {
+    return <p>loading...</p>
+  }
   return (
     <div className="App">
       <h1> birdnest app</h1>
-      <h3>Pilots whose drones violate NDZ in the last 10m</h3>
+      <h3>Pilots whose drones violate NDZ from the last 10 minutes</h3>
       <ol>
         {validCaptures.map((capture, index) => (
-          <li key={index}>{capture.snapshotTimestamp}</li>
+          <li key={index}>
+            {capture.snapshotTimestamp}
+            <p>Captured {momentAgo(capture.snapshotTimestamp)}</p>
+          </li>
         ))}
       </ol>
     </div>
