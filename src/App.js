@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useState, useEffect, useRef } from 'react'
 import moment from 'moment'
 
-// calculate distance between each drone to nfz origin point (position 250000, 250000)
+// calculate distance between each drone to NDZ (no drone zone) origin point (position 250000, 250000)
 //
 // to define which drones are violating the NDZ (no drone zone)
 function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
@@ -96,6 +96,16 @@ function App() {
           },
         ) // map ends here
 
+        const recentViolatingDrones = recentSavedCapture?.drone?.filter(
+          (drone) =>
+            isInsideNDZ(
+              drone.positionX,
+              drone.positionY,
+              originX,
+              originY,
+              Radius,
+            ),
+        )
         // create an array of violating drones
 
         const violatingDroneList = capturesWithViolatingDrones.reduce(
@@ -122,7 +132,7 @@ function App() {
           },
           [],
         )
-        console.log('uniqueViolatingDrones length', uniqueViolatingDrones)
+        console.log('uniqueViolatingDrones', uniqueViolatingDrones)
 
         // array of distance, use Math.min to fine the closet confirmed distance drone-nest
         const distanceList = uniqueViolatingDrones.map((drone) => {
@@ -139,40 +149,12 @@ function App() {
         confirmedClosestDist.current = Math.min(...distanceList)
         // console.log('confirmedClosestDist', confirmedClosestDist)
 
-        // console.log('violatingDroneList length', violatingDroneList)
-
         // create pilot links for fetching violating pilot info
         // expected output is an arr of link with serialNumber param
 
-        const pilotFetchLinks = capturesWithViolatingDrones
-          .map((captureObject) => {
-            let serialNumberList = captureObject.drone.map(
-              (drone) => drone.serialNumber,
-            )
-
-            let pilotLinks = serialNumberList.map(
-              (serialNumber) =>
-                `http://localhost:3001/api/pilots/${serialNumber}`,
-            )
-            return pilotLinks
-          })
-          .reduce(
-            (accumulator, currentValue) => accumulator.concat(currentValue),
-            [],
-          )
-
-        // remove duplicate links out of fetchPilotLinks array
-        const uniquePilotLinks = pilotFetchLinks.reduce(
-          (accumulator, currentValue) => {
-            if (!accumulator.includes(currentValue)) {
-              return [...accumulator, currentValue]
-            }
-            return accumulator
-          },
-          [],
+        const pilotFetchLinksList = uniqueViolatingDrones.map(
+          (drone) => `http://localhost:3001/api/pilots/${drone.serialNumber}`,
         )
-
-        // console.log('uniquePilotLinks', uniquePilotLinks)
 
         // recentPilotLinks
         const recentPilotLinks = recentSavedCapture?.drone?.map(
@@ -182,9 +164,9 @@ function App() {
 
         // check if violatingPilots are fetched already
         if (violatingPilots.length === 0) {
+          console.log('if block...')
           // fetch pilots info
-
-          axios.all(uniquePilotLinks.map((link) => axios.get(link))).then(
+          axios.all(pilotFetchLinksList.map((link) => axios.get(link))).then(
             axios.spread(function (...responses) {
               // console.log('responses', responses)
 
@@ -203,6 +185,7 @@ function App() {
             }),
           )
         } else {
+          console.log('else block...')
           axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
             axios.spread(function (...responses) {
               // console.log('responses', responses)
@@ -220,11 +203,6 @@ function App() {
                 .concat(recentPilots)
                 .reduce((accumulator, currentPilotObject) => {
                   const found = accumulator.find((item) => {
-                    // console.log('item.serialNumber', item.serialNumber)
-                    // console.log(
-                    //   'currentValue.serialNumber',
-                    //   currentValue.serialNumber,
-                    // )
                     return item.pilotId === currentPilotObject.pilotId
                   })
 
@@ -234,7 +212,7 @@ function App() {
                   return accumulator
                 }, [])
 
-              console.log('uniquePilots', uniquePilots)
+              // console.log('uniquePilots', uniquePilots)
               setViolatingPilots(uniquePilots)
             }),
           )
