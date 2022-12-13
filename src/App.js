@@ -46,6 +46,8 @@ function App() {
   const [captureData, setCaptureData] = useState([])
   const [validCaptures, setValidCaptures] = useState([])
   const [violatingPilots, setViolatingPilots] = useState([])
+  const [recentSavedCapture, setRecentSavedCapture] = useState([])
+  const [recentPilots, setRecentPilots] = useState([])
 
   const Radius = 100
   const originX = 250000
@@ -56,6 +58,7 @@ function App() {
 
   useEffect(() => {
     console.log('useEffect...')
+
     let interval = setInterval(() => {
       axios.get('http://localhost:3001/api/drones').then((response) => {
         // console.log('response', response)
@@ -65,7 +68,8 @@ function App() {
         // )
 
         // setCaptureData(captureData.concat(response.data.report.capture[0]))
-        setCaptureData(response.data)
+        setCaptureData(response?.data?.dataToReturn)
+        setRecentSavedCapture(response?.data?.recentSavedCapture)
 
         // filter out captureData that is valid (from the last 10 minutes)
         let validCaptures = captureData.filter((capture) => {
@@ -92,7 +96,6 @@ function App() {
           },
         ) // map ends here
 
-        // array of distance, use Math.min to fine the closet confirmed distance drone-nest
         // create an array of violating drones
 
         const violatingDroneList = capturesWithViolatingDrones.reduce(
@@ -121,6 +124,7 @@ function App() {
         )
         console.log('uniqueViolatingDrones length', uniqueViolatingDrones)
 
+        // array of distance, use Math.min to fine the closet confirmed distance drone-nest
         const distanceList = uniqueViolatingDrones.map((drone) => {
           return droneToNestDistance(
             drone.positionX,
@@ -170,32 +174,78 @@ function App() {
 
         // console.log('uniquePilotLinks', uniquePilotLinks)
 
-        // fetch pilots info
-
-        axios.all(uniquePilotLinks.map((link) => axios.get(link))).then(
-          axios.spread(function (...responses) {
-            // console.log('responses', responses)
-
-            const allPilots = responses.reduce(
-              (accumulator, currentResponse) => {
-                // console.log('accumulator', accumulator)
-                // console.log('currentValue', currentValue)
-
-                return accumulator.concat(currentResponse.data)
-              },
-              [],
-            )
-
-            // console.log('allPilotsArr', allPilots)
-            setViolatingPilots(allPilots)
-          }),
+        // recentPilotLinks
+        const recentPilotLinks = recentSavedCapture?.drone?.map(
+          (droneObject) =>
+            `http://localhost:3001/api/pilots/${droneObject.serialNumber}`,
         )
-        // axios all ends here
+
+        // check if violatingPilots are fetched already
+        if (violatingPilots.length === 0) {
+          // fetch pilots info
+
+          axios.all(uniquePilotLinks.map((link) => axios.get(link))).then(
+            axios.spread(function (...responses) {
+              // console.log('responses', responses)
+
+              const allPilots = responses.reduce(
+                (accumulator, currentResponse) => {
+                  // console.log('accumulator', accumulator)
+                  // console.log('currentValue', currentValue)
+
+                  return accumulator.concat(currentResponse.data)
+                },
+                [],
+              )
+
+              // console.log('allPilotsArr', allPilots)
+              setViolatingPilots(allPilots)
+            }),
+          )
+        } else {
+          axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
+            axios.spread(function (...responses) {
+              // console.log('responses', responses)
+
+              const recentPilots = responses.reduce(
+                (accumulator, currentResponse) => {
+                  return accumulator.concat(currentResponse.data)
+                },
+                [],
+              )
+
+              console.log('recentPilotsArr', recentPilots)
+              // remove duplicates
+              const uniquePilots = violatingPilots
+                .concat(recentPilots)
+                .reduce((accumulator, currentPilotObject) => {
+                  const found = accumulator.find((item) => {
+                    // console.log('item.serialNumber', item.serialNumber)
+                    // console.log(
+                    //   'currentValue.serialNumber',
+                    //   currentValue.serialNumber,
+                    // )
+                    return item.pilotId === currentPilotObject.pilotId
+                  })
+
+                  if (!found) {
+                    return [...accumulator, currentPilotObject]
+                  }
+                  return accumulator
+                }, [])
+
+              console.log('uniquePilots', uniquePilots)
+              setViolatingPilots(uniquePilots)
+            }),
+          )
+        }
+        // console.log('recentPilotLinks', recentPilotLinks)
 
         console.log('captureData', captureData)
+        console.log('recentSavedCapture', recentSavedCapture)
         console.log('validCaptures', validCaptures)
         console.log('capturesWithViolatingDrones', capturesWithViolatingDrones)
-        // console.log('violatingPilots', violatingPilots)
+        console.log('violatingPilots', violatingPilots)
       })
     }, 2000)
 
