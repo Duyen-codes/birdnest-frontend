@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import moment from 'moment'
 
 // calculate distance between each drone to nfz origin point (position 250000, 250000)
@@ -51,13 +51,14 @@ function App() {
   const originX = 250000
   const originY = 250000
   const today = new Date()
+  let confirmedClosestDist = useRef(0)
   console.log('App rendering...')
 
   useEffect(() => {
-    console.log('useEffect running')
+    console.log('useEffect...')
     let interval = setInterval(() => {
       axios.get('http://localhost:3001/api/drones').then((response) => {
-        console.log('response', response)
+        // console.log('response', response)
         // console.log(
         //   'response.data.report.capture[0]',
         //   response.data.report.capture[0],
@@ -73,7 +74,7 @@ function App() {
 
         setValidCaptures(validCaptures)
 
-        // filter the captureData array which is an arr of capture objects{snapshotTimestamp, drone} to get new arr of captures with only violating drones
+        // filter the captureData array which is an arr of capture objects{snapshotTimestamp: '', drone: []} to get new arr of captures with only violating drones
 
         const capturesWithViolatingDrones = validCaptures?.map(
           (captureObject) => {
@@ -94,11 +95,56 @@ function App() {
         // array of distance, use Math.min to fine the closet confirmed distance drone-nest
         // create an array of violating drones
 
+        const violatingDroneList = capturesWithViolatingDrones.reduce(
+          (accumulator, currentValue) => {
+            return [...accumulator, ...currentValue.drone]
+          },
+          [],
+        )
+        const droneListWithNoDuplicates = violatingDroneList.reduce(
+          (accumulator, currentValue) => {
+            const found = accumulator.find((item) => {
+              // console.log('item.serialNumber', item.serialNumber)
+              // console.log(
+              //   'currentValue.serialNumber',
+              //   currentValue.serialNumber,
+              // )
+              return item.serialNumber[0] === currentValue.serialNumber[0]
+            })
+            // console.log('found', found)
+            if (!found) {
+              return [...accumulator, currentValue]
+            }
+            return accumulator
+          },
+          [],
+        )
+        console.log(
+          'droneListWithNoDuplicates length',
+          droneListWithNoDuplicates,
+        )
+
+        const distanceList = droneListWithNoDuplicates.map((drone) => {
+          return droneToNestDistance(
+            drone.positionX,
+            drone.positionY,
+            originX,
+            originY,
+          )
+        })
+
+        console.log('distanceList', distanceList)
+
+        confirmedClosestDist.current = Math.min(...distanceList)
+        console.log('confirmedClosestDist', confirmedClosestDist)
+
+        // console.log('violatingDroneList length', violatingDroneList)
+
         // create pilot links for fetching violating pilot info
         // expected output is an arr of link with serialNumber param
 
-        const fetchPilotLinks = capturesWithViolatingDrones
-          ?.map((captureObject) => {
+        const pilotFetchLinks = capturesWithViolatingDrones
+          .map((captureObject) => {
             let serialNumberList = captureObject.drone.map(
               (drone) => drone.serialNumber,
             )
@@ -115,7 +161,7 @@ function App() {
           )
 
         // remove duplicate links out of fetchPilotLinks array
-        const pilotLinksWithNoDuplicates = fetchPilotLinks.reduce(
+        const pilotLinksWithNoDuplicates = pilotFetchLinks.reduce(
           (accumulator, currentValue) => {
             if (!accumulator.includes(currentValue)) {
               return [...accumulator, currentValue]
@@ -136,21 +182,21 @@ function App() {
           .all(pilotLinksWithNoDuplicates.map((link) => axios.get(link)))
           .then(
             axios.spread(function (...responses) {
-              console.log('responses', responses)
+              // console.log('responses', responses)
               // setViolatingPilots(responses)
               const allPilots = responses.reduce(
                 (accumulator, currentValue) =>
                   accumulator.concat(currentValue.data),
                 [],
               )
-              console.log('allPilotsArr', allPilots)
+              // console.log('allPilotsArr', allPilots)
               setViolatingPilots(allPilots)
             }),
           )
         // axios all ends here
 
-        console.log('captureData', captureData.length)
-        console.log('validCaptures', validCaptures.length)
+        console.log('captureData', captureData)
+        console.log('validCaptures', validCaptures)
         console.log('capturesWithViolatingDrones', capturesWithViolatingDrones)
       })
     }, 5000)
@@ -167,6 +213,9 @@ function App() {
     <div className="App">
       <h1> birdnest app</h1>
       <h3>Pilots whose drones violate NDZ from the last 10 minutes</h3>
+      <p>
+        Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
+      </p>
       <ol>
         {violatingPilots.map((pilot, index) => (
           <li key={pilot.firstName}>
