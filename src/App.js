@@ -26,13 +26,20 @@ const isTimeValid = (today, snapshotTimestamp) => {
   let diffInMinutes = Math.ceil(diff / 60000)
   // console.log('diffInMinutes', diffInMinutes)
 
-  return diffInMinutes <= 4
+  return diffInMinutes <= 10 // from the last 10minutes only
 }
 
 const momentAgo = (snapshotTimestamp) => {
   const snapshotDate = new Date(snapshotTimestamp)
 
   return moment(snapshotDate).fromNow()
+}
+
+function droneToNestDistance(droneX, droneY, originX, originY) {
+  return Math.sqrt(
+    (droneX - originX) * (droneX - originX) +
+      (droneY - originY) * (droneY - originY),
+  )
 }
 
 function App() {
@@ -50,46 +57,47 @@ function App() {
     console.log('useEffect running')
     let interval = setInterval(() => {
       axios.get('http://localhost:3001/api/drones').then((response) => {
+        console.log('response', response)
         // console.log(
         //   'response.data.report.capture[0]',
         //   response.data.report.capture[0],
         // )
 
-        setCaptureData(captureData.concat(response.data.report.capture[0]))
+        // setCaptureData(captureData.concat(response.data.report.capture[0]))
+        setCaptureData(response.data)
 
         // filter out captureData that is valid (from the last 10 minutes)
         let validCaptures = captureData.filter((capture) => {
-          let result = isTimeValid(today, capture?.snapshotTimestamp)
-
-          if (result) {
-            return capture
-          }
+          return isTimeValid(today, capture?.snapshotTimestamp)
         })
 
         setValidCaptures(validCaptures)
 
         // filter the captureData array which is an arr of capture objects{snapshotTimestamp, drone} to get new arr of captures with only violating drones
 
-        const listWithViolatingDrones = validCaptures?.map((captureObject) => {
-          let filteredDroneArr = captureObject.drone.filter((drone) => {
-            return isInsideNDZ(
-              drone.positionX,
-              drone.positionY,
-              originX,
-              originY,
-              Radius,
-            )
-          }) // filter ends here
+        const capturesWithViolatingDrones = validCaptures?.map(
+          (captureObject) => {
+            let filteredDroneArr = captureObject.drone.filter((drone) => {
+              return isInsideNDZ(
+                drone.positionX,
+                drone.positionY,
+                originX,
+                originY,
+                Radius,
+              )
+            }) // filter ends here
 
-          return { ...captureObject, drone: filteredDroneArr }
-        }) // map ends here
+            return { ...captureObject, drone: filteredDroneArr }
+          },
+        ) // map ends here
 
         // array of distance, use Math.min to fine the closet confirmed distance drone-nest
+        // create an array of violating drones
 
         // create pilot links for fetching violating pilot info
         // expected output is an arr of link with serialNumber param
 
-        const fetchPilotLinks = listWithViolatingDrones
+        const fetchPilotLinks = capturesWithViolatingDrones
           ?.map((captureObject) => {
             let serialNumberList = captureObject.drone.map(
               (drone) => drone.serialNumber,
@@ -127,10 +135,10 @@ function App() {
         axios
           .all(pilotLinksWithNoDuplicates.map((link) => axios.get(link)))
           .then(
-            axios.spread(function (...res) {
-              console.log('res', res)
-              // setViolatingPilots(res)
-              const allPilots = res.reduce(
+            axios.spread(function (...responses) {
+              console.log('responses', responses)
+              // setViolatingPilots(responses)
+              const allPilots = responses.reduce(
                 (accumulator, currentValue) =>
                   accumulator.concat(currentValue.data),
                 [],
@@ -143,7 +151,7 @@ function App() {
 
         console.log('captureData', captureData.length)
         console.log('validCaptures', validCaptures.length)
-        console.log('listWithViolatingDrones', listWithViolatingDrones.length)
+        console.log('capturesWithViolatingDrones', capturesWithViolatingDrones)
       })
     }, 5000)
 
@@ -151,13 +159,6 @@ function App() {
       clearInterval(interval)
     }
   }, [captureData])
-
-  function droneToNestDistance(droneX, droneY) {
-    return Math.sqrt(
-      (droneX - originX) * (droneX - originX) +
-        (droneY - originY) * (droneY - originY),
-    )
-  }
 
   if (validCaptures.length === 0) {
     return <p>loading...</p>
