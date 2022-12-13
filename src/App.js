@@ -16,7 +16,7 @@ function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
   return d <= 0
 }
 
-// check time validity
+// check time validity of every capture object
 
 const isTimeValid = (today, snapshotTimestamp) => {
   // console.log('today', today)
