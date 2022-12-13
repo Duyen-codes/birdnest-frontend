@@ -101,7 +101,7 @@ function App() {
           },
           [],
         )
-        const droneListWithNoDuplicates = violatingDroneList.reduce(
+        const uniqueViolatingDrones = violatingDroneList.reduce(
           (accumulator, currentValue) => {
             const found = accumulator.find((item) => {
               // console.log('item.serialNumber', item.serialNumber)
@@ -119,12 +119,9 @@ function App() {
           },
           [],
         )
-        console.log(
-          'droneListWithNoDuplicates length',
-          droneListWithNoDuplicates,
-        )
+        console.log('uniqueViolatingDrones length', uniqueViolatingDrones)
 
-        const distanceList = droneListWithNoDuplicates.map((drone) => {
+        const distanceList = uniqueViolatingDrones.map((drone) => {
           return droneToNestDistance(
             drone.positionX,
             drone.positionY,
@@ -133,10 +130,10 @@ function App() {
           )
         })
 
-        console.log('distanceList', distanceList)
+        // console.log('distanceList', distanceList)
 
         confirmedClosestDist.current = Math.min(...distanceList)
-        console.log('confirmedClosestDist', confirmedClosestDist)
+        // console.log('confirmedClosestDist', confirmedClosestDist)
 
         // console.log('violatingDroneList length', violatingDroneList)
 
@@ -161,7 +158,7 @@ function App() {
           )
 
         // remove duplicate links out of fetchPilotLinks array
-        const pilotLinksWithNoDuplicates = pilotFetchLinks.reduce(
+        const uniquePilotLinks = pilotFetchLinks.reduce(
           (accumulator, currentValue) => {
             if (!accumulator.includes(currentValue)) {
               return [...accumulator, currentValue]
@@ -171,44 +168,47 @@ function App() {
           [],
         )
 
-        console.log(
-          'pilotLinksWithNoDuplicates',
-          pilotLinksWithNoDuplicates.length,
-        )
+        // console.log('uniquePilotLinks', uniquePilotLinks)
 
         // fetch pilots info
 
-        axios
-          .all(pilotLinksWithNoDuplicates.map((link) => axios.get(link)))
-          .then(
-            axios.spread(function (...responses) {
-              // console.log('responses', responses)
-              // setViolatingPilots(responses)
-              const allPilots = responses.reduce(
-                (accumulator, currentValue) =>
-                  accumulator.concat(currentValue.data),
-                [],
-              )
-              // console.log('allPilotsArr', allPilots)
-              setViolatingPilots(allPilots)
-            }),
-          )
+        axios.all(uniquePilotLinks.map((link) => axios.get(link))).then(
+          axios.spread(function (...responses) {
+            // console.log('responses', responses)
+
+            const allPilots = responses.reduce(
+              (accumulator, currentResponse) => {
+                // console.log('accumulator', accumulator)
+                // console.log('currentValue', currentValue)
+
+                return accumulator.concat(currentResponse.data)
+              },
+              [],
+            )
+
+            // console.log('allPilotsArr', allPilots)
+            setViolatingPilots(allPilots)
+          }),
+        )
         // axios all ends here
 
         console.log('captureData', captureData)
         console.log('validCaptures', validCaptures)
         console.log('capturesWithViolatingDrones', capturesWithViolatingDrones)
+        // console.log('violatingPilots', violatingPilots)
       })
-    }, 5000)
+    }, 2000)
 
     return () => {
       clearInterval(interval)
     }
-  }, [captureData])
+  }, [violatingPilots])
 
-  if (validCaptures.length === 0) {
+  if (violatingPilots.length === 0) {
     return <p>loading...</p>
   }
+
+  console.log('violatingPilots', violatingPilots)
   return (
     <div className="App">
       <h1> birdnest app</h1>
@@ -216,9 +216,10 @@ function App() {
       <p>
         Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
       </p>
+      <p>Number of violating pilots: {violatingPilots.length}</p>
       <ol>
         {violatingPilots.map((pilot, index) => (
-          <li key={pilot.firstName}>
+          <li key={index}>
             <p>
               {' '}
               {pilot.firstName} {pilot.lastName}
