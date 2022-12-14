@@ -55,6 +55,7 @@ function App() {
   const today = new Date()
   let confirmedClosestDist = useRef(0)
   console.log('App rendering...')
+  console.log('violatingPilots...', violatingPilots)
 
   useEffect(() => {
     console.log('useEffect...')
@@ -69,7 +70,12 @@ function App() {
 
         // setCaptureData(captureData.concat(response.data.report.capture[0]))
         setCaptureData(response?.data?.dataToReturn)
+
+        console.log('captureData', captureData)
+
         setRecentSavedCapture(response?.data?.recentSavedCapture)
+
+        console.log('recentSavedCapture', recentSavedCapture)
 
         // filter out captureData that is valid (from the last 10 minutes)
         let validCaptures = captureData.filter((capture) => {
@@ -77,6 +83,8 @@ function App() {
         })
 
         setValidCaptures(validCaptures)
+
+        console.log('validCaptures', validCaptures)
 
         // filter the captureData array which is an arr of capture objects{snapshotTimestamp: '', drone: []} to get new arr of captures with only violating drones
 
@@ -132,7 +140,7 @@ function App() {
           },
           [],
         )
-        console.log('uniqueViolatingDrones', uniqueViolatingDrones)
+        // console.log('uniqueViolatingDrones', uniqueViolatingDrones)
 
         // array of distance, use Math.min to fine the closet confirmed distance drone-nest
         const distanceList = uniqueViolatingDrones.map((drone) => {
@@ -182,9 +190,11 @@ function App() {
 
               // console.log('allPilotsArr', allPilots)
               setViolatingPilots(allPilots)
+              console.log('if block violatingPilots...', violatingPilots)
             }),
           )
         } else {
+          // only fetch info of new added pilots
           console.log('else block...')
           axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
             axios.spread(function (...responses) {
@@ -197,8 +207,9 @@ function App() {
                 [],
               )
 
-              console.log('recentPilotsArr', recentPilots)
-              // remove duplicates
+              // console.log('recentPilots', recentPilots)
+
+              // remove duplicates when combining existing violatingPilots list with recentPilots list
               const uniquePilots = violatingPilots
                 .concat(recentPilots)
                 .reduce((accumulator, currentPilotObject) => {
@@ -219,9 +230,6 @@ function App() {
         }
         // console.log('recentPilotLinks', recentPilotLinks)
 
-        console.log('captureData', captureData)
-        console.log('recentSavedCapture', recentSavedCapture)
-        console.log('validCaptures', validCaptures)
         console.log('capturesWithViolatingDrones', capturesWithViolatingDrones)
         console.log('violatingPilots', violatingPilots)
       })
