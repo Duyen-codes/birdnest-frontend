@@ -2,6 +2,8 @@ import axios from 'axios'
 import { useState, useEffect, useRef } from 'react'
 import moment from 'moment'
 
+import captureService from './services/captures'
+
 // calculate distance between each drone to NDZ (no drone zone) origin point (position 250000, 250000)
 //
 // to define which drones are violating the NDZ (no drone zone)
@@ -61,19 +63,14 @@ function App() {
     console.log('useEffect...')
 
     let interval = setInterval(() => {
-      axios.get('http://localhost:3001/api/drones').then((response) => {
-        // console.log('response', response)
-        // console.log(
-        //   'response.data.report.capture[0]',
-        //   response.data.report.capture[0],
-        // )
-
+      captureService.getAll().then((data) => {
+        console.log('data', data)
         // setCaptureData(captureData.concat(response.data.report.capture[0]))
-        setCaptureData(response?.data?.dataToReturn)
+        setCaptureData(data?.captures)
 
         console.log('captureData', captureData)
 
-        setRecentSavedCapture(response?.data?.recentSavedCapture)
+        setRecentSavedCapture(data?.recentSavedCapture)
 
         console.log('recentSavedCapture', recentSavedCapture)
 
@@ -125,14 +122,9 @@ function App() {
         const uniqueViolatingDrones = violatingDroneList.reduce(
           (accumulator, currentValue) => {
             const found = accumulator.find((item) => {
-              // console.log('item.serialNumber', item.serialNumber)
-              // console.log(
-              //   'currentValue.serialNumber',
-              //   currentValue.serialNumber,
-              // )
               return item.serialNumber[0] === currentValue.serialNumber[0]
             })
-            // console.log('found', found)
+
             if (!found) {
               return [...accumulator, currentValue]
             }
@@ -180,9 +172,6 @@ function App() {
 
               const allPilots = responses.reduce(
                 (accumulator, currentResponse) => {
-                  // console.log('accumulator', accumulator)
-                  // console.log('currentValue', currentValue)
-
                   return accumulator.concat(currentResponse.data)
                 },
                 [],
@@ -198,8 +187,6 @@ function App() {
           console.log('else block...')
           axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
             axios.spread(function (...responses) {
-              // console.log('responses', responses)
-
               const recentPilots = responses.reduce(
                 (accumulator, currentResponse) => {
                   return accumulator.concat(currentResponse.data)
