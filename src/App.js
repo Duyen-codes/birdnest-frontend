@@ -21,12 +21,10 @@ function isInsideNDZ(droneX, droneY, originX, originY, Radius) {
 // check time validity of every capture object
 
 const isTimeValid = (today, snapshotTimestamp) => {
-  // console.log('today', today)
   let snapshotDate = new Date(snapshotTimestamp)
   let diff = today.getTime() - snapshotDate.getTime()
-  // console.log('diff', diff)
+
   let diffInMinutes = Math.ceil(diff / 60000)
-  // console.log('diffInMinutes', diffInMinutes)
 
   return diffInMinutes <= 10 // from the last 10minutes only
 }
@@ -46,7 +44,7 @@ function droneToNestDistance(droneX, droneY, originX, originY) {
 
 function App() {
   const [captureData, setCaptureData] = useState([])
-  const [validCaptures, setValidCaptures] = useState([])
+
   const [violatingPilots, setViolatingPilots] = useState([])
   const [recentSavedCapture, setRecentSavedCapture] = useState([])
   const [recentPilots, setRecentPilots] = useState([])
@@ -59,182 +57,142 @@ function App() {
 
   console.log('App rendering...')
 
-  // console.log('violatingPilots...', violatingPilots)
-
   console.log('recentSavedCapture', recentSavedCapture)
 
   useEffect(() => {
-    console.log('useEffect...')
-
     let interval = setInterval(() => {
-      console.log('fetching data here...')
-      captureService
-        .getAll()
-        .then((data) => {
-          // setCaptureData(captureData.concat(response.data.report.capture[0]))
+      captureService.getAll().then((data) => {
+        setCaptureData(data?.captures)
 
-          setCaptureData(data?.captures)
+        setRecentSavedCapture(data?.recentSavedCapture)
 
-          console.log('captureData', captureData)
+        // filter out captureData that is valid (from the last 10 minutes)
+        let validCaptures = captureData.filter((capture) => {
+          return isTimeValid(today, capture?.snapshotTimestamp)
+        })
 
-          setRecentSavedCapture(data?.recentSavedCapture)
+        // filter the captureData array which is an arr of capture objects{snapshotTimestamp: '', drone: []} to get new arr of captures with only violating drones
 
-          console.log('recentSavedCapture', recentSavedCapture)
-
-          // filter out captureData that is valid (from the last 10 minutes)
-          let validCaptures = captureData.filter((capture) => {
-            return isTimeValid(today, capture?.snapshotTimestamp)
-          })
-
-          setValidCaptures(validCaptures)
-
-          // console.log('validCaptures', validCaptures)
-
-          // filter the captureData array which is an arr of capture objects{snapshotTimestamp: '', drone: []} to get new arr of captures with only violating drones
-
-          const capturesWithViolatingDrones = validCaptures?.map(
-            (captureObject) => {
-              let filteredDroneArr = captureObject.drone.filter((drone) => {
-                return isInsideNDZ(
-                  drone.positionX,
-                  drone.positionY,
-                  originX,
-                  originY,
-                  Radius,
-                )
-              }) // filter ends here
-
-              return { ...captureObject, drone: filteredDroneArr }
-            },
-          ) // map ends here
-
-          const recentViolatingDrones = recentSavedCapture?.drone?.filter(
-            (drone) =>
-              isInsideNDZ(
+        const capturesWithViolatingDrones = validCaptures?.map(
+          (captureObject) => {
+            let filteredDroneArr = captureObject.drone.filter((drone) => {
+              return isInsideNDZ(
                 drone.positionX,
                 drone.positionY,
                 originX,
                 originY,
                 Radius,
-              ),
-          )
-          // create an array of violating drones
+              )
+            }) // filter ends here
 
-          const violatingDroneList = capturesWithViolatingDrones.reduce(
-            (accumulator, currentValue) => {
-              return [...accumulator, ...currentValue.drone]
-            },
-            [],
-          )
-          const uniqueViolatingDrones = violatingDroneList.reduce(
-            (accumulator, currentValue) => {
-              const found = accumulator.find((item) => {
-                return item.serialNumber[0] === currentValue.serialNumber[0]
-              })
+            return { ...captureObject, drone: filteredDroneArr }
+          },
+        ) // map ends here
 
-              if (!found) {
-                return [...accumulator, currentValue]
-              }
-              return accumulator
-            },
-            [],
-          )
-          // console.log('uniqueViolatingDrones', uniqueViolatingDrones)
-
-          // array of distance, use Math.min to fine the closet confirmed distance drone-nest
-          const distanceList = uniqueViolatingDrones.map((drone) => {
-            return droneToNestDistance(
+        const recentViolatingDrones = recentSavedCapture?.drone?.filter(
+          (drone) =>
+            isInsideNDZ(
               drone.positionX,
               drone.positionY,
               originX,
               originY,
-            )
-          })
+              Radius,
+            ),
+        )
+        // create an array of violating drones from all captureData that has violating drones
 
-          // console.log('distanceList', distanceList)
+        const violatingDroneList = capturesWithViolatingDrones.reduce(
+          (accumulator, currentValue) => {
+            return [...accumulator, ...currentValue.drone]
+          },
+          [],
+        )
 
-          confirmedClosestDist.current = Math.min(...distanceList)
-          // console.log('confirmedClosestDist', confirmedClosestDist)
+        const uniqueViolatingDrones = violatingDroneList.reduce(
+          (accumulator, currentValue) => {
+            const found = accumulator.find((item) => {
+              return item.serialNumber[0] === currentValue.serialNumber[0]
+            })
 
-          // create pilot links for fetching violating pilot info
-          // expected output is an arr of link with serialNumber param
+            if (!found) {
+              return [...accumulator, currentValue]
+            }
+            return accumulator
+          },
+          [],
+        )
 
-          const pilotFetchLinksList = uniqueViolatingDrones.map(
-            (drone) => `http://localhost:3001/api/pilots/${drone.serialNumber}`,
+        // array of distance, use Math.min to find the closest confirmed distance drone-nest
+        const distanceList = uniqueViolatingDrones.map((drone) => {
+          return droneToNestDistance(
+            drone.positionX,
+            drone.positionY,
+            originX,
+            originY,
           )
+        })
 
-          // recentPilotLinks
-          const recentPilotLinks = recentSavedCapture?.drone?.map(
-            (droneObject) =>
-              `http://localhost:3001/api/pilots/${droneObject.serialNumber}`,
+        confirmedClosestDist.current = Math.min(...distanceList)
+
+        // create pilot links for fetching violating pilot info
+        // expected output is an arr of link with serialNumber param
+
+        const pilotFetchLinksList = uniqueViolatingDrones.map(
+          (drone) => `http://localhost:3001/api/pilots/${drone.serialNumber}`,
+        )
+
+        // recentPilotLinks from recentSavedCapture
+        const recentPilotLinks = recentSavedCapture?.drone?.map(
+          (droneObject) =>
+            `http://localhost:3001/api/pilots/${droneObject.serialNumber}`,
+        )
+
+        // check if violatingPilots are fetched already
+        if (violatingPilots.length === 0) {
+          // fetch all pilots for the first time
+          axios.all(pilotFetchLinksList.map((link) => axios.get(link))).then(
+            axios.spread(function (...responses) {
+              const allPilots = responses.reduce(
+                (accumulator, currentResponse) => {
+                  return accumulator.concat(currentResponse.data)
+                },
+                [],
+              )
+
+              setViolatingPilots(allPilots)
+            }),
           )
+        } else {
+          // only fetch info of new added pilots
 
-          // check if violatingPilots are fetched already
-          if (violatingPilots.length === 0) {
-            console.log('if block...')
-            // fetch pilots info
-            axios.all(pilotFetchLinksList.map((link) => axios.get(link))).then(
-              axios.spread(function (...responses) {
-                // console.log('responses', responses)
-                console.log('if block...fetching pilots...')
+          axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
+            axios.spread(function (...responses) {
+              const recentPilots = responses.reduce(
+                (accumulator, currentResponse) => {
+                  return accumulator.concat(currentResponse.data)
+                },
+                [],
+              )
 
-                const allPilots = responses.reduce(
-                  (accumulator, currentResponse) => {
-                    return accumulator.concat(currentResponse.data)
-                  },
-                  [],
-                )
+              // remove duplicates when combining existing violatingPilots list with recentPilots list
+              const uniquePilots = recentPilots
+                .concat(violatingPilots)
+                .reduce((accumulator, currentPilotObject) => {
+                  const found = accumulator.find((item) => {
+                    return item.pilotId === currentPilotObject.pilotId
+                  })
 
-                // console.log('allPilotsArr', allPilots)
-                setViolatingPilots(allPilots)
-                console.log('if block violatingPilots...', violatingPilots)
-              }),
-            )
-          } else {
-            // only fetch info of new added pilots
-            console.log('else block...')
-            axios.all(recentPilotLinks.map((link) => axios.get(link))).then(
-              axios.spread(function (...responses) {
-                console.log('else block...fetching pilots...')
-                const recentPilots = responses.reduce(
-                  (accumulator, currentResponse) => {
-                    return accumulator.concat(currentResponse.data)
-                  },
-                  [],
-                )
+                  if (!found) {
+                    return [...accumulator, currentPilotObject]
+                  }
+                  return accumulator
+                }, [])
 
-                // console.log('recentPilots', recentPilots)
-
-                // remove duplicates when combining existing violatingPilots list with recentPilots list
-                const uniquePilots = recentPilots
-                  .concat(violatingPilots)
-                  .reduce((accumulator, currentPilotObject) => {
-                    const found = accumulator.find((item) => {
-                      return item.pilotId === currentPilotObject.pilotId
-                    })
-
-                    if (!found) {
-                      return [...accumulator, currentPilotObject]
-                    }
-                    return accumulator
-                  }, [])
-
-                // console.log('uniquePilots', uniquePilots)
-                setViolatingPilots(uniquePilots)
-              }),
-            )
-          }
-          // console.log('recentPilotLinks', recentPilotLinks)
-
-          // console.log(
-          //   'capturesWithViolatingDrones',
-          //   capturesWithViolatingDrones,
-          // )
-          // console.log('violatingPilots', violatingPilots)
-        })
-        .catch((error) => {
-          console.log(error.response.data.error)
-        })
+              setViolatingPilots(uniquePilots)
+            }),
+          )
+        }
+      })
     }, 2000)
 
     return () => {
@@ -242,15 +200,10 @@ function App() {
     }
   }, [violatingPilots])
 
-  useEffect(() => {
-    console.log('second useEffect..runs after the first render only')
-  }, [])
-
   if (violatingPilots.length === 0) {
     return <p>loading...</p>
   }
 
-  console.log('violatingPilots for display', violatingPilots)
   return (
     <div className="App">
       <h1> Birdnest app</h1>
