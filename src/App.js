@@ -234,8 +234,8 @@ function App() {
   console.log('violatingPilots', violatingPilots)
   return (
     <div className="App">
-      <h1> birdnest app</h1>
-      <h3>Pilots whose drones violate NDZ from the last 10 minutes</h3>
+      <h1> Birdnest app</h1>
+      <h3>Pilots whose drones violate NDZ from the last 10 minutes:</h3>
       <p>
         Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
       </p>
