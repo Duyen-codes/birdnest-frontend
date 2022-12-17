@@ -4,6 +4,16 @@ import moment from 'moment'
 
 import captureService from './services/captures'
 
+import Card from '@mui/material/Card'
+import EmailIcon from '@mui/icons-material/Email'
+import ContactPhoneIcon from '@mui/icons-material/ContactPhone'
+import IconButton from '@mui/material/IconButton'
+import Grid from '@mui/material/Grid'
+import Container from '@mui/material/Container'
+import CardMedia from '@mui/material/CardMedia'
+import CardContent from '@mui/material/CardContent'
+import Typography from '@mui/material/Typography'
+
 // calculate distance between each drone to NDZ (no drone zone) origin point (position 250000, 250000)
 //
 // to define which drones are violating the NDZ (no drone zone)
@@ -138,13 +148,12 @@ function App() {
         // expected output is an arr of link with serialNumber param
 
         const pilotFetchLinksList = uniqueViolatingDrones.map(
-          (drone) => `http://localhost:3001/api/pilots/${drone.serialNumber}`,
+          (drone) => `/api/pilots/${drone.serialNumber}`,
         )
 
         // recentPilotLinks from recentSavedCapture
         const recentPilotLinks = recentSavedCapture?.drone?.map(
-          (droneObject) =>
-            `http://localhost:3001/api/pilots/${droneObject.serialNumber}`,
+          (droneObject) => `/api/pilots/${droneObject.serialNumber}`,
         )
 
         // check if violatingPilots are fetched already
@@ -205,25 +214,43 @@ function App() {
   }
 
   return (
-    <div className="App">
+    <div className="App text-base">
       <h1> Birdnest app</h1>
       <h3>Pilots whose drones violate NDZ from the last 10 minutes:</h3>
       <p>
         Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
       </p>
       <p>Number of violating pilots: {violatingPilots.length}</p>
-      <ol>
+
+      <Grid container>
         {violatingPilots.map((pilot, index) => (
-          <li key={index}>
-            <p>
-              {' '}
-              {pilot.firstName} {pilot.lastName}
-            </p>
-            <p>phone: {pilot.phoneNumber}</p>
-            <p>Email: {pilot.email}</p>
-          </li>
+          <Grid key={index} xs={12} sm={6} md={4} sx={{ p: 2 }}>
+            <Card>
+              <CardMedia
+                component="img"
+                image="https://source.unsplash.com/random"
+                alt="random"
+              />
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Typography gutterBottom variant="h5" component="h2">
+                  {' '}
+                  {pilot.firstName} {pilot.lastName}
+                </Typography>
+
+                <p>
+                  <ContactPhoneIcon />
+
+                  {pilot.phoneNumber}
+                </p>
+
+                <p>
+                  <EmailIcon /> {pilot.email}
+                </p>
+              </CardContent>
+            </Card>
+          </Grid>
         ))}
-      </ol>
+      </Grid>
     </div>
   )
 }
