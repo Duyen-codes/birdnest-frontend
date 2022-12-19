@@ -224,7 +224,7 @@ function App() {
 
   if (violatingPilots.length === 0) {
     return (
-      <Box sx={{ display: 'flex' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
         <CircularProgress variant="determinate" value={progress} />
       </Box>
     )
