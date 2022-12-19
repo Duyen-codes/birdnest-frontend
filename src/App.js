@@ -4,6 +4,7 @@ import moment from 'moment'
 
 import captureService from './services/captures'
 
+// Material UI
 import Card from '@mui/material/Card'
 import EmailIcon from '@mui/icons-material/Email'
 import ContactPhoneIcon from '@mui/icons-material/ContactPhone'
@@ -13,6 +14,9 @@ import Container from '@mui/material/Container'
 import CardMedia from '@mui/material/CardMedia'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
+import Stack from '@mui/material/Stack'
+import CircularProgress from '@mui/material/CircularProgress'
+import Box from '@mui/material/Box'
 
 // calculate distance between each drone to NDZ (no drone zone) origin point (position 250000, 250000)
 //
@@ -39,11 +43,11 @@ const isTimeValid = (today, snapshotTimestamp) => {
   return diffInMinutes <= 10 // from the last 10minutes only
 }
 
-const momentAgo = (snapshotTimestamp) => {
-  const snapshotDate = new Date(snapshotTimestamp)
+// const momentAgo = (snapshotTimestamp) => {
+//   const snapshotDate = new Date(snapshotTimestamp)
 
-  return moment(snapshotDate).fromNow()
-}
+//   return moment(snapshotDate).fromNow()
+// }
 
 function droneToNestDistance(droneX, droneY, originX, originY) {
   return Math.sqrt(
@@ -59,15 +63,13 @@ function App() {
   const [recentSavedCapture, setRecentSavedCapture] = useState([])
   const [recentPilots, setRecentPilots] = useState([])
 
+  const [progress, setProgress] = useState(10)
+
   const Radius = 100
   const originX = 250000
   const originY = 250000
   const today = new Date()
   let confirmedClosestDist = useRef(0)
-
-  console.log('App rendering...')
-
-  console.log('recentSavedCapture', recentSavedCapture)
 
   useEffect(() => {
     let interval = setInterval(() => {
@@ -208,44 +210,72 @@ function App() {
       clearInterval(interval)
     }
   }, [violatingPilots])
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setProgress((prevProgress) =>
+        prevProgress >= 100 ? 0 : prevProgress + 10,
+      )
+    }, 800)
+
+    return () => {
+      clearInterval(timer)
+    }
+  }, [])
 
   if (violatingPilots.length === 0) {
-    return <p>loading...</p>
+    return (
+      <Box sx={{ display: 'flex' }}>
+        <CircularProgress variant="determinate" value={progress} />
+      </Box>
+    )
   }
 
   return (
-    <div className="App text-base">
-      <h1> Birdnest app</h1>
-      <h3>Pilots whose drones violate NDZ from the last 10 minutes:</h3>
-      <p>
-        Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
-      </p>
-      <p>Number of violating pilots: {violatingPilots.length}</p>
-
-      <Grid container>
+    <div className="App">
+      <div style={{ textAlign: 'center' }}>
+        <Typography
+          variant="h2"
+          sx={{ textAlign: 'center', fontWeight: 'medium' }}
+        >
+          {' '}
+          Birdnest app
+        </Typography>
+        <Typography variant="h5">
+          Pilots whose drones violate NDZ from the last 10 minutes:
+        </Typography>
+        <p>
+          Confirmed closet distance to the nest: {confirmedClosestDist.current}{' '}
+        </p>
+        <p>Total violating pilots: {violatingPilots.length}</p>
+      </div>
+      <Grid container spacing={2}>
         {violatingPilots.map((pilot, index) => (
-          <Grid key={index} xs={12} sm={6} md={4} sx={{ p: 2 }}>
+          <Grid item key={index} xs={12} sm={6} md={4}>
             <Card>
-              <CardMedia
-                component="img"
-                image="https://source.unsplash.com/random"
-                alt="random"
-              />
               <CardContent sx={{ flexGrow: 1 }}>
-                <Typography gutterBottom variant="h5" component="h2">
+                <Typography
+                  gutterBottom
+                  variant="h5"
+                  component="h2"
+                  sx={{ fontWeight: 'medium' }}
+                >
                   {' '}
                   {pilot.firstName} {pilot.lastName}
                 </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <IconButton>
+                    <ContactPhoneIcon color="primary" />
+                  </IconButton>
 
-                <p>
-                  <ContactPhoneIcon />
+                  <p> {pilot.phoneNumber}</p>
+                </Stack>
 
-                  {pilot.phoneNumber}
-                </p>
-
-                <p>
-                  <EmailIcon /> {pilot.email}
-                </p>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <IconButton>
+                    <EmailIcon color="primary" />
+                  </IconButton>
+                  <p>{pilot.email}</p>
+                </Stack>
               </CardContent>
             </Card>
           </Grid>
